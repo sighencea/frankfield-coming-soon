@@ -180,6 +180,85 @@
       color: var(--dim);
     }
 
+    .form-error {
+      margin: 0;
+      font-weight: 300;
+      font-size: 13px;
+      letter-spacing: .04em;
+      color: #d6a08c;
+    }
+
+    /* Confirmation modal */
+    .modal {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .modal__backdrop {
+      position: absolute;
+      inset: 0;
+      background: rgba(6, 5, 4, .78);
+      -webkit-backdrop-filter: blur(3px);
+      backdrop-filter: blur(3px);
+      animation: ffFade .4s ease both;
+    }
+
+    .modal__card {
+      position: relative;
+      width: min(440px, 100%);
+      background: #1a1611;
+      border: 1px solid var(--line);
+      border-top: 2px solid var(--gold);
+      padding: clamp(32px, 5vw, 48px) clamp(24px, 5vw, 40px);
+      text-align: center;
+      box-shadow: 0 30px 80px rgba(0, 0, 0, .6);
+      animation: ffModalIn .6s cubic-bezier(.22, .61, .36, 1) both;
+    }
+
+    .modal__mark { width: 58px; height: auto; display: block; margin: 0 auto 22px; }
+
+    .modal__title {
+      margin: 0 0 14px;
+      font-family: 'Libre Baskerville', serif;
+      font-weight: 400;
+      font-size: clamp(22px, 3vw, 28px);
+      line-height: 1.4;
+      color: var(--ink);
+    }
+
+    .modal__text {
+      margin: 0 0 28px;
+      font-weight: 300;
+      font-size: 15px;
+      line-height: 1.8;
+      color: var(--muted);
+    }
+
+    .modal__close {
+      background: none;
+      border: 1px solid var(--gold);
+      cursor: pointer;
+      font-family: Jost, sans-serif;
+      font-size: 12px;
+      letter-spacing: .28em;
+      text-transform: uppercase;
+      color: var(--gold);
+      padding: 12px 30px;
+      transition: background-color .3s ease, color .3s ease;
+    }
+    .modal__close:hover { background: var(--gold); color: #12100e; }
+
+    @keyframes ffFade { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes ffModalIn {
+      from { opacity: 0; transform: translateY(20px) scale(.96); }
+      to   { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
     [hidden] { display: none !important; }
 
     /* Mobile: fit the entire page within one screen, no scrolling. */
@@ -201,7 +280,7 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .fade, .thanks { animation: none; }
+      .fade, .thanks, .modal__backdrop, .modal__card { animation: none; }
     }
   </style>
 </head>
@@ -218,11 +297,13 @@
       <div class="signup fade d3">
         <span class="signup__eyebrow">Be the first to enter the House</span>
 
-        <form class="form" id="signup-form" novalidate>
+        <form class="form" id="signup-form" action="https://formspree.io/f/xbdnzvyp" method="POST" novalidate>
+          <input type="hidden" name="_subject" value="New Frankfield signup">
           <input class="form__input" id="email" name="email" type="email" required autocomplete="email" placeholder="Your email address" aria-label="Your email address">
           <button class="form__button" type="submit">Notify me</button>
         </form>
 
+        <p class="form-error" id="form-error" role="alert" hidden>Something went wrong. Please try again.</p>
         <p class="thanks" id="thanks" hidden>Thank you. We will write only when it matters.</p>
 
         <span class="signup__note">Occasionally, and only when worth your attention. No promotions.</span>
@@ -234,14 +315,54 @@
     </div>
   </div>
 
+  <!-- Confirmation modal (shown after a successful signup) -->
+  <div class="modal" id="confirm-modal" hidden>
+    <div class="modal__backdrop" data-close></div>
+    <div class="modal__card" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-text">
+      <img class="modal__mark" src="monogram.png" alt="">
+      <h2 class="modal__title" id="modal-title">You're on the list.</h2>
+      <p class="modal__text" id="modal-text">Thank you. We will write only when it matters.</p>
+      <button class="modal__close" type="button" data-close>Close</button>
+    </div>
+  </div>
+
   <script>
     (function () {
-      var form = document.getElementById('signup-form');
-      var input = document.getElementById('email');
-      var thanks = document.getElementById('thanks');
+      var FORMSPREE_ENDPOINT = 'https://formspree.io/f/xbdnzvyp';
+
+      var form    = document.getElementById('signup-form');
+      var input   = document.getElementById('email');
+      var button  = form.querySelector('button[type="submit"]');
+      var thanks  = document.getElementById('thanks');
+      var errorEl = document.getElementById('form-error');
+      var modal   = document.getElementById('confirm-modal');
+      var lastFocused = null;
+
+      function openModal() {
+        lastFocused = document.activeElement;
+        modal.hidden = false;
+        document.body.style.overflow = 'hidden';
+        var closeBtn = modal.querySelector('.modal__close');
+        if (closeBtn) closeBtn.focus();
+        document.addEventListener('keydown', onKeydown);
+      }
+
+      function closeModal() {
+        modal.hidden = true;
+        document.body.style.overflow = '';
+        document.removeEventListener('keydown', onKeydown);
+        if (lastFocused && lastFocused.focus) lastFocused.focus();
+      }
+
+      function onKeydown(e) { if (e.key === 'Escape') closeModal(); }
+
+      Array.prototype.forEach.call(modal.querySelectorAll('[data-close]'), function (el) {
+        el.addEventListener('click', closeModal);
+      });
 
       form.addEventListener('submit', function (e) {
         e.preventDefault();
+        errorEl.hidden = true;
 
         // Native validation for a well-formed, non-empty email.
         if (!input.value.trim() || !input.checkValidity()) {
@@ -249,10 +370,35 @@
           return;
         }
 
-        // No backend here (static GitHub Pages) — swap the form for the confirmation.
-        // To collect addresses, point the form at a service (Formspree, Mailchimp, etc.).
-        form.hidden = true;
-        thanks.hidden = false;
+        var original = button.textContent;
+        button.disabled = true;
+        button.textContent = 'Sending…';
+
+        fetch(FORMSPREE_ENDPOINT, {
+          method: 'POST',
+          headers: { 'Accept': 'application/json' },
+          body: new FormData(form)
+        }).then(function (res) {
+          if (res.ok) {
+            form.hidden = true;      // swap the field for the inline confirmation
+            thanks.hidden = false;
+            openModal();             // and surface the confirmation popup
+            return;
+          }
+          return res.json().then(function (data) {
+            var msg = (data && data.errors && data.errors.length)
+              ? data.errors.map(function (x) { return x.message; }).join(', ')
+              : 'Something went wrong. Please try again.';
+            errorEl.textContent = msg;
+            errorEl.hidden = false;
+          });
+        }).catch(function () {
+          errorEl.textContent = 'Network error. Please check your connection and try again.';
+          errorEl.hidden = false;
+        }).finally(function () {
+          button.disabled = false;
+          button.textContent = original;
+        });
       });
     })();
   </script>

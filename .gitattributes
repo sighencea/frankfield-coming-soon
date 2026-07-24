@@ -1,0 +1,9 @@
+# Normalize line endings: store and check out text files with LF.
+* text=auto eol=lf
+
+# Treat images as binary (never convert line endings).
+*.png binary
+*.webp binary
+*.jpg binary
+*.jpeg binary
+*.ico binary
